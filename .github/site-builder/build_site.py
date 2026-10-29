@@ -38,6 +38,7 @@ DITA_IMAGE = os.environ.get("DITA_IMAGE", "ghcr.io/dita-ot/dita-ot:4.4.1")
 
 SKIP_DIRS = {".git", ".github", "_build", "_site", "node_modules", ".vscode"}
 TOPIC_TYPES = ("concept", "task", "reference")
+CODE_IN_STEPS = []  # task topics with a code block indented under a step
 MAP_SCHEMA = "---\n$schema: urn:oasis:names:tc:dita:xsd:map.xsd\n---\n"
 
 
@@ -358,7 +359,7 @@ def check_topic(rel, label):
     lines[h1] = f"{title_line} {{.{ttype}}}" if ttype else title_line
 
     if ttype == "task":
-        n = fix_task_steps(lines, h1 + 1)
+        n = fix_task_steps(lines, h1 + 1, rel)
         if n:
             R.fixed(f"**{rel}**: {n} extra paragraph(s), picture(s), or note(s) indented under a "
                     "numbered step were shown as bullet points. In a DITA task, each step is one "
@@ -367,7 +368,7 @@ def check_topic(rel, label):
     write(rel, "\n".join(lines))
 
 
-def fix_task_steps(lines, start):
+def fix_task_steps(lines, start, rel):
     """
     DITA-OT's Markdown reader crashes when a numbered step in a task holds
     anything besides one paragraph and sub-lists. Turn each extra block
@@ -382,6 +383,8 @@ def fix_task_steps(lines, start):
         stripped = line.strip()
         indent = len(line) - len(line.lstrip(" "))
         if stripped.startswith("```"):
+            if not in_fence and in_step and indent >= 2 and rel not in CODE_IN_STEPS:
+                CODE_IN_STEPS.append(rel)
             in_fence = not in_fence
             continue
         if in_fence:
@@ -732,9 +735,11 @@ def run_dita():
     R.dita_log = log
 
     if "Attribute \"class\" was already specified for element \"info\"" in log:
-        R.error("A numbered step in one of your task topics has something extra indented under it "
-                "that the builder couldn't fix. Look for paragraphs, pictures, or notes indented "
-                "under a numbered step, and move them after the numbered list.")
+        where = (" in " + ", ".join(f"**{f}**" for f in CODE_IN_STEPS)) if CODE_IN_STEPS else \
+            " in one of your task topics"
+        R.error(f"A numbered step{where} has something extra indented under it that the builder "
+                "couldn't fix (usually a code block made with ``` marks). Move it after the "
+                "numbered list, or remove the ``` marks.")
     ok = proc.returncode == 0 and (out / "index.html").exists()
     if not ok and not R.errors:
         R.error("DITA-OT couldn't build your site, and the builder doesn't recognize the problem. "
