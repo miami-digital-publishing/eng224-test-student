@@ -1,9 +1,12 @@
 # Set up a game {.task}
 
-1. Place the grid.
+Get the board ready before your first turn.
 
-   ```
-   | | |
-   ```
+1. Place the grid between the two players.
+2. Decide who will play X and who will play O.
+3. Give each player their markers.
+4. Choose who goes first. Traditionally, X goes first.
 
-2. Pick X or O.
+![An empty Tic-Tac-Toe grid](../images/board.svg)
+
+The game is ready to begin.
