@@ -1,11 +1,9 @@
-/* Midnight: light text on a dark background */
+/* Midnight: light text on deep navy with a soft violet glow */
 :root {
-  --bg: #14161f;
-  --text: #e4e4ea;
-  --main: #8ab4ff;
-  --accent: #ffb454;
-  --sidebar-bg: #1c1f2b;
-  --border: #2e3346;
-  --heading-font: Josefin Sans;
-  --body-font: Lato;
+  --bg: #0b1020;
+  --text: #e5e7eb;
+  --main: #818cf8;
+  --accent: #fbbf24;
+  --heading-font: Manrope;
+  --body-font: Inter;
 }

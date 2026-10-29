@@ -1,11 +1,9 @@
-/* Forest: greens and browns with friendly rounded fonts */
+/* Forest: sage greens and amber with a soft modern serif */
 :root {
-  --bg: #f7f6ef;
-  --text: #26302a;
-  --main: #2f5d3a;
-  --accent: #82511f;
-  --sidebar-bg: #e8ecdc;
-  --border: #ccd4bc;
-  --heading-font: Fredoka;
-  --body-font: Nunito;
+  --bg: #f5f8f2;
+  --text: #1f2b22;
+  --main: #2f6b46;
+  --accent: #b45309;
+  --heading-font: Fraunces;
+  --body-font: Nunito Sans;
 }

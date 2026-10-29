@@ -52,6 +52,8 @@ class Report:
         self.warnings = []  # site builds, but something looks wrong
         self.fixes = []     # small mistakes the builder fixed in its copy
         self.design = []    # (setting, value used, note)
+        self.moved = []     # links to files found in a different folder
+        self.pages = []     # (menu label, file, topic type) in menu order
         self.dita_log = ""
 
     def error(self, msg): self.errors.append(msg)
@@ -159,31 +161,45 @@ IMAGE_EXT = (".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp")
 NOT_TOPICS = {"manual.md", "design.md", "readme.md"}
 
 
+MOVED = "moved"
+AMBIGUOUS = "\x00"  # marks a hint about two files with the same name
+
+
 def resolve(target, from_dir):
     """
-    Find the file a link points to. Returns (fixed_target, how) where how is
-    None (link was fine), a sentence describing the fix, or fixed_target is
-    None if the file can't be found (how then holds suggestions).
+    Find the file a link points to. Paths can be relative to the file the
+    link is in, or written from the top folder (with or without a leading
+    "/"). Returns (fixed_target, how): how is None when the link was fine,
+    MOVED when the file was found in another folder by its name, or a
+    sentence describing another fix. fixed_target is None if the file
+    can't be found, and how then holds a hint.
     """
     path, frag = (target.split("#", 1) + [""])[:2]
     frag = "#" + frag if frag else ""
     path = urllib.parse.unquote(path)
-    want = posixpath.normpath(posixpath.join(from_dir, path)) if from_dir else posixpath.normpath(path)
+    from_top = posixpath.normpath(path.lstrip("/"))
+    here = from_top if path.startswith("/") else posixpath.normpath(posixpath.join(from_dir, path))
 
     def rel(found):
         return posixpath.relpath(found, from_dir or ".") + frag
 
-    if want in ALL_FILES:
-        return target, None
-    if posixpath.normpath(path) in ALL_FILES:
-        return rel(posixpath.normpath(path)), "the path was written from the top folder"
+    if here in ALL_FILES:
+        return rel(here), None
+    if from_top in ALL_FILES:
+        return rel(from_top), None
     lower = {f.lower(): f for f in ALL_FILES}
-    if want.lower() in lower:
-        return rel(lower[want.lower()]), "capital letters didn't match the file name"
+    for cand in (here, from_top):
+        if cand.lower() in lower:
+            return rel(lower[cand.lower()]), "capital letters didn't match the file name"
     base = posixpath.basename(path).lower()
     same_name = [f for f in ALL_FILES if posixpath.basename(f).lower() == base]
     if len(same_name) == 1:
-        return rel(same_name[0]), "the file is in a different folder than the link said"
+        return rel(same_name[0]), MOVED
+    if len(same_name) > 1:
+        listed = " and ".join(f"`/{f}`" for f in same_name[:3])
+        return None, (f"{AMBIGUOUS} There's more than one file named `{posixpath.basename(path)}` ({listed}), "
+                      "so the builder can't tell which one you mean. Write the full path from the "
+                      f"top folder, like `/{same_name[0]}`.")
     if path.lower().endswith(".md"):
         pool = [f for f in ALL_FILES if f.lower().endswith(".md") and f.lower() not in NOT_TOPICS]
     elif path.lower().endswith(IMAGE_EXT):
@@ -195,6 +211,21 @@ def resolve(target, from_dir):
     if names:
         hint = " Did you mean " + " or ".join(f"`{n}`" for n in names) + "?"
     return None, hint
+
+
+def not_found(target, hint):
+    """How to describe a link the builder couldn't follow."""
+    if hint.startswith(AMBIGUOUS):
+        return f"`{target}`, but that could mean more than one file.{hint[1:]}"
+    return f"`{target}`, but that file doesn't exist.{hint}"
+
+
+def note_fix(where, what, target, new, how):
+    """Record a link the builder repaired. Moved files are summed up in one note."""
+    if how == MOVED:
+        R.moved.append(f"`{target}` in {where}")
+    elif how:
+        R.fixed(f"{where}: changed the {what} `{target}` to `{new}` ({how}).")
 
 
 LINK_RE = re.compile(r"(!?)\[([^\]]*)\]\(\s*<?([^)\s>]+(?: [^)\s>]+)*)>?\s*(?:\"[^\"]*\")?\s*\)")
@@ -255,11 +286,9 @@ def check_map():
             new, how = resolve(target, "")
             if new is None:
                 R.warn(f"**manual.md** line {i + 1}: the menu item \"{label}\" links to "
-                       f"`{target}`, but there's no file with that name.{how} "
-                       "Check the spelling, or create the file." + dropped)
+                       + not_found(target, how) + dropped)
                 return label
-            if how:
-                R.fixed(f"**manual.md** line {i + 1}: changed the link `{target}` to `{new}` ({how}).")
+            note_fix(f"**manual.md** line {i + 1}", "link", target, new, how)
             topics.append((new.split("#")[0], label))
             return f"[{label}]({new})"
 
@@ -309,16 +338,14 @@ def check_topic(rel, label):
                 return text_
             new, how = resolve(target, where)
             if new is None:
-                msg = (f"**{rel}** line {i + 1}: the {what} `{target}` points to a file that "
-                       f"doesn't exist.{how}")
+                msg = f"**{rel}** line {i + 1}: the {what} links to " + not_found(target, how)
                 if bang:
                     R.warn(msg + " Upload the picture to the `images` folder, or fix its name. "
                            "For now, the picture was left out.")
                 else:
                     R.warn(msg + " For now, the link was turned into plain text.")
                 return text_
-            if how:
-                R.fixed(f"**{rel}** line {i + 1}: changed the {what} `{target}` to `{new}` ({how}).")
+            note_fix(f"**{rel}** line {i + 1}", what, target, new, how)
             return f"{bang}[{text_}]({new})"
 
         lines[i] = LINK_RE.sub(fix, line)
@@ -357,6 +384,7 @@ def check_topic(rel, label):
                "or `{.reference}` to the end of the title line, like "
                f"`{title_line} {{.concept}}`.")
     lines[h1] = f"{title_line} {{.{ttype}}}" if ttype else title_line
+    R.pages.append((label, rel, ttype or "none"))
 
     if ttype == "task":
         n = fix_task_steps(lines, h1 + 1, rel)
@@ -450,6 +478,7 @@ SYSTEM_FONTS = {
 
 DESIGN_KEYS = {
     "theme": "Theme",
+    "style": "Style",
     "maincolor": "Main color",
     "accentcolor": "Accent color",
     "backgroundcolor": "Background color",
@@ -461,6 +490,7 @@ DESIGN_KEYS = {
     "topiclabels": "Topic labels",
     "logo": "Logo",
     "footertext": "Footer text",
+    "tagline": "Tagline",
 }
 
 
@@ -521,8 +551,12 @@ def contrast(a, b):
     return (la + 0.05) / (lb + 0.05)
 
 
-def readable_on(color):
-    return "#ffffff" if contrast(color, "#ffffff") >= contrast(color, "#111111") else "#111111"
+def readable_on(*colors):
+    """White or near-black, whichever stays readable on every color given
+    (more than one for a gradient)."""
+    white = min(contrast(c, "#ffffff") for c in colors)
+    dark = min(contrast(c, "#111111") for c in colors)
+    return "#ffffff" if white >= dark else "#111111"
 
 
 def read_theme(name):
@@ -578,6 +612,15 @@ def build_design():
                    f"Choose one of: {', '.join(themes)}. The builder used parchment.")
             theme = "parchment"
     R.design.append(("Theme", theme, ""))
+
+    style_raw = v.get("style", "").lower()
+    style = next((s_ for s_ in ("glass", "soft", "flat") if style_raw.startswith(s_)), None)
+    if style is None:
+        if not is_default(style_raw):
+            R.warn(f"**design.md**: Style \"{v.get('style')}\" isn't glass, soft, or flat. "
+                   "The builder used glass.")
+        style = "glass"
+    R.design.append(("Style", style, ""))
     t = read_theme(theme)
 
     colors = {}
@@ -598,14 +641,6 @@ def build_design():
             R.design.append((label, t[var], "theme"))
             R.warn(f"**design.md**: \"{raw}\" isn't a color the builder knows, so {label} uses "
                    "the theme's color. Try a color name like `navy` or a hex code like `#1a5276`.")
-
-    # If the student changed the background, the theme's sidebar and border
-    # colors may clash; derive them from the new background instead.
-    if colors["bg"] != t["bg"]:
-        sidebar = "color-mix(in srgb, var(--bg) 88%, var(--text))"
-        border = "color-mix(in srgb, var(--bg) 75%, var(--text))"
-    else:
-        sidebar, border = t["sidebar-bg"], t["border"]
 
     if contrast(colors["text"], colors["bg"]) < 4.5:
         R.warn(f"**design.md**: your text color and background color are too close "
@@ -674,6 +709,8 @@ def build_design():
     if not is_default(logo_raw):
         cand = logo_raw if "/" in logo_raw else f"images/{logo_raw}"
         new, _ = resolve(cand, "")
+        if new and not new.lower().endswith(IMAGE_EXT):
+            new = None
         if new:
             logo = new
             R.design.append(("Logo", new, ""))
@@ -683,6 +720,8 @@ def build_design():
 
     footer = "" if is_default(v.get("footertext", "")) else v.get("footertext", "")
     R.design.append(("Footer text", html.escape(footer) or "(none)", ""))
+    tagline = "" if is_default(v.get("tagline", "")) else v.get("tagline", "")
+    R.design.append(("Tagline", html.escape(tagline) or "(none)", ""))
 
     def stack(name):
         return f'"{name}", system-ui, sans-serif'
@@ -697,8 +736,7 @@ def build_design():
   --on-main: {readable_on(colors['main'])};
   --accent: {colors['accent']};
   --on-accent: {readable_on(colors['accent'])};
-  --sidebar-bg: {sidebar};
-  --border: {border};
+  --on-grad: {readable_on(colors['main'], colors['accent'])};
   --heading-font-stack: {stack(heading)};
   --body-font-stack: {stack(body)};
   --heading-scale: {t.get('heading-scale', '1') if is_default(v.get('headingfont', '')) else '1'};
@@ -714,7 +752,8 @@ def build_design():
             head.append(f'<link rel="stylesheet" href="https://fonts.googleapis.com/css2?{html.escape(q)}&amp;display=swap">')
     head.append('<link rel="stylesheet" href="SITEROOT__/_theme/site.css">')
 
-    return css, "\n".join(head), {"logo": logo, "footer": footer, "labels": show_labels}
+    return css, "\n".join(head), {"logo": logo, "footer": footer, "labels": show_labels,
+                                    "style": style, "tagline": tagline}
 
 
 # --------------------------------------------------------------------------
@@ -762,8 +801,8 @@ def finish_site(title, css, head, opts):
         shutil.copy2(SRC / opts["logo"], OUT / "_theme" / f"logo{ext}")
         logo_html = f'<img src="SITEROOT__/_theme/logo{ext}" alt="">'
 
-    header = (f'<header role="banner"><div class="site-header">{logo_html}'
-              f'<a href="SITEROOT__/index.html">{html.escape(title)}</a>'
+    header = (f'<header role="banner"><div class="site-header">'
+              f'<a class="site-title" href="SITEROOT__/index.html">{logo_html}{html.escape(title)}</a>'
               f'<a class="menu-link" href="#site-menu">Menu</a></div></header>')
 
     try:
@@ -785,22 +824,29 @@ def finish_site(title, css, head, opts):
 
     (OUT / "build-report.html").write_text(
         f'<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Build report</title>'
-        f'</head><body><main class="home">{report_html()}</main></body></html>', encoding="utf-8")
+        f'</head><body><main role="main"><article>{report_html()}</article></main></body></html>',
+        encoding="utf-8")
 
     for page in OUT.rglob("*.html"):
         depth = len(page.relative_to(OUT).parts) - 1
         root = "/".join([".."] * depth) or "."
         doc = page.read_text(encoding="utf-8")
-        is_home = page.relative_to(OUT).as_posix() in ("index.html", "build-report.html")
+        name = page.relative_to(OUT).as_posix()
+        is_home = name == "index.html"
+        page_class = {"index.html": " home-page", "build-report.html": " report-page"}.get(name, "")
 
         doc = doc.replace("</head>", head + "</head>", 1)
-        page_header = header.replace('<a class="menu-link" href="#site-menu">Menu</a>', "") if is_home else header
+        doc = doc.replace("<body", f'<body class="style-{opts["style"]}{page_class}"', 1)
+        page_header = header.replace('<a class="menu-link" href="#site-menu">Menu</a>', "") if page_class else header
         doc = re.sub(r"(<body[^>]*>)", lambda m: m.group(1) + page_header, doc, count=1)
         doc = doc.replace("</body>", footer + "</body>", 1)
         doc = doc.replace('<nav class="toc"', '<nav class="toc" id="site-menu"', 1)
 
-        if is_home and 'class="home"' not in doc:
+        if is_home:
             doc = re.sub(r"(</header>)(.*)(<footer)", r'\1<main class="home">\2</main>\3', doc, count=1, flags=re.S)
+            tagline = f'<p class="tagline">{html.escape(opts["tagline"])}</p>' if opts["tagline"] else ""
+            doc = re.sub(r'(<h1 class="title topictitle1">.*?</h1>)',
+                         lambda m: f'<div class="home-hero">{m.group(1)}{tagline}</div>', doc, count=1, flags=re.S)
 
         if opts["labels"]:
             m = re.search(r'<div class="body (conbody|taskbody|refbody)', doc)
@@ -821,7 +867,7 @@ def inline(text):
 
 
 def report_html():
-    parts = ["<h1>Build report</h1>",
+    parts = ['<h1 class="title topictitle1">Build report</h1>',
              "<p>This page is for you, the writer. It lists what the website builder noticed the "
              "last time it built your site.</p>"]
     for title, items in (("Things to check", R.warnings),
@@ -834,6 +880,19 @@ def report_html():
     if R.fixes:
         parts.append("<p><em>Your files were not changed. The builder fixed these in its own copy, "
                      "so you can fix them in your files whenever you like.</em></p>")
+    if R.pages:
+        counts = {t: sum(1 for p in R.pages if p[2] == t) for t in TOPIC_TYPES + ("none",)}
+        summary = ", ".join(f"{n} {t}" for t, n in counts.items() if n and t != "none")
+        if counts["none"]:
+            summary += f", {counts['none']} without a type"
+        parts.append(f"<h2>Your pages</h2><p>{len(R.pages)} pages in your menu: {summary}. "
+                     "Compare this list with your content inventory.</p>")
+        parts.append("<table><thead><tr><th>#</th><th>Menu item</th><th>Type</th><th>File</th>"
+                     "</tr></thead><tbody>")
+        for n, (label, rel, ttype) in enumerate(R.pages, 1):
+            parts.append(f"<tr><td>{n}</td><td>{html.escape(label)}</td><td>{ttype}</td>"
+                         f"<td><code>{html.escape(rel)}</code></td></tr>")
+        parts.append("</tbody></table>")
     parts.append("<h2>Design settings used</h2><table><thead><tr><th>Setting</th><th>Used</th>"
                  "<th>Note</th></tr></thead><tbody>")
     for name, value, note in R.design:
@@ -865,6 +924,10 @@ def main():
     topics = check_map()
     for rel, label in topics:
         check_topic(rel, label)
+    if R.moved:
+        R.fixed(f"{len(R.moved)} link(s) pointed to a file that's in a different folder, and the "
+                "builder found the file by its name: " + "; ".join(R.moved) + ". This is fine, but "
+                "if two files ever share a name, the builder will need the full path.")
 
     css, head, opts = build_design()
 

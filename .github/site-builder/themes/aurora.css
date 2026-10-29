@@ -1,0 +1,9 @@
+/* Aurora: indigo and magenta glows with crisp modern fonts */
+:root {
+  --bg: #f7f7fc;
+  --text: #1e1b3a;
+  --main: #4f46e5;
+  --accent: #c026d3;
+  --heading-font: Sora;
+  --body-font: Inter;
+}

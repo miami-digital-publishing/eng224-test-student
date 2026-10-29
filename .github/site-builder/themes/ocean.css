@@ -1,11 +1,9 @@
-/* Ocean: cool blues with clean modern fonts */
+/* Ocean: cool teal and blue with clean modern fonts */
 :root {
-  --bg: #f7fbfd;
-  --text: #1b2b34;
-  --main: #0b4f6c;
-  --accent: #016f8f;
-  --sidebar-bg: #e4f0f5;
-  --border: #c2dae5;
-  --heading-font: Montserrat;
-  --body-font: Source Sans 3;
+  --bg: #f3f9fc;
+  --text: #0f2530;
+  --main: #0e7490;
+  --accent: #2563eb;
+  --heading-font: Outfit;
+  --body-font: DM Sans;
 }

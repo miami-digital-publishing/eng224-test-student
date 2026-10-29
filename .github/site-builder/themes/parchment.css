@@ -1,11 +1,9 @@
-/* Parchment: warm paper and old-book fonts */
+/* Parchment: warm paper tones and old-book fonts, for fantasy and history games */
 :root {
-  --bg: #f6efe0;
+  --bg: #fbf6ec;
   --text: #2b2118;
-  --main: #6b2d1f;
-  --accent: #8f4f0e;
-  --sidebar-bg: #eee2c8;
-  --border: #d6c39c;
+  --main: #7c2d12;
+  --accent: #a1580e;
   --heading-font: Cinzel;
-  --body-font: EB Garamond;
+  --body-font: Crimson Pro;
 }
