@@ -1,0 +1,59 @@
+# Builds the website with DITA-OT every time you commit, then publishes it
+# with GitHub Pages. You don't need to change anything in this file.
+
+name: Build website
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  issues: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # If you commit again while a build is running, skip straight to the newest one.
+    concurrency:
+      group: build-website
+      cancel-in-progress: true
+    steps:
+      - name: Get your files
+        uses: actions/checkout@v7
+
+      - name: Build the website
+        id: build
+        run: python3 .github/site-builder/build_site.py
+
+      - name: Package the website
+        if: steps.build.outcome == 'success'
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+      - name: Tell you if something went wrong
+        if: ${{ !cancelled() && steps.build.outcome != 'skipped' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_OUTCOME: ${{ steps.build.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: bash .github/site-builder/notify.sh
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    # Never interrupt a website that's halfway through publishing.
+    concurrency:
+      group: publish-website
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publish the website
+        id: deployment
+        uses: actions/deploy-pages@v5

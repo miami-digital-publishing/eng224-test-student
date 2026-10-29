@@ -1,0 +1,11 @@
+/* Forest: greens and browns with friendly rounded fonts */
+:root {
+  --bg: #f7f6ef;
+  --text: #26302a;
+  --main: #2f5d3a;
+  --accent: #82511f;
+  --sidebar-bg: #e8ecdc;
+  --border: #ccd4bc;
+  --heading-font: Fredoka;
+  --body-font: Nunito;
+}

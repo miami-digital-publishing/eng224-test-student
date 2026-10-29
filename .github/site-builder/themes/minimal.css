@@ -1,0 +1,11 @@
+/* Minimal: black and white with simple, plain fonts */
+:root {
+  --bg: #ffffff;
+  --text: #111111;
+  --main: #111111;
+  --accent: #0050c8;
+  --sidebar-bg: #f4f4f4;
+  --border: #dddddd;
+  --heading-font: Inter;
+  --body-font: Inter;
+}

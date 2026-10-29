@@ -1,0 +1,11 @@
+/* Parchment: warm paper and old-book fonts */
+:root {
+  --bg: #f6efe0;
+  --text: #2b2118;
+  --main: #6b2d1f;
+  --accent: #8f4f0e;
+  --sidebar-bg: #eee2c8;
+  --border: #d6c39c;
+  --heading-font: Cinzel;
+  --body-font: EB Garamond;
+}

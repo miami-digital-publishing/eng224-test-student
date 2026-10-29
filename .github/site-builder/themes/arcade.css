@@ -1,0 +1,12 @@
+/* Arcade: bold, bright colors with a retro computer font */
+:root {
+  --bg: #fffdf5;
+  --text: #1a1a2e;
+  --main: #5a189a;
+  --accent: #c2186f;
+  --sidebar-bg: #fff1c1;
+  --border: #1a1a2e;
+  --heading-font: Press Start 2P;
+  --body-font: Space Grotesk;
+  --heading-scale: 0.7;
+}
