@@ -387,6 +387,23 @@ main.home ul.map ul {
   font-weight: 400;
 }
 main.home ul.map ul li { padding: 0.18rem 0; }
+/* A sub-section inside a card, like "Crew" under "Cards" */
+main.home ul.map ul li.topichead {
+  margin-top: 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+main.home ul.map ul ul {
+  margin: 0.3rem 0 0 0.15rem;
+  padding-left: 0.75rem;
+  border-left: 1px solid var(--line);
+  font-size: 0.95rem;
+  letter-spacing: normal;
+  text-transform: none;
+}
 main.home ul.map a { text-decoration: none; font-weight: 600; }
 main.home ul.map a:hover { text-decoration: underline; }
 /* A single-page card is clickable all over */

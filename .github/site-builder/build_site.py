@@ -491,6 +491,7 @@ DESIGN_KEYS = {
     "logo": "Logo",
     "footertext": "Footer text",
     "tagline": "Tagline",
+    "themepicker": "Theme picker",  # testing only; see theme_picker()
 }
 
 
@@ -752,8 +753,98 @@ def build_design():
             head.append(f'<link rel="stylesheet" href="https://fonts.googleapis.com/css2?{html.escape(q)}&amp;display=swap">')
     head.append('<link rel="stylesheet" href="SITEROOT__/_theme/site.css">')
 
+    picker = ""
+    if v.get("themepicker", "").lower().startswith(("show", "on", "yes", "true")):
+        p_css, p_head, picker = theme_picker(themes)
+        css += p_css
+        head.append(p_head)
+
     return css, "\n".join(head), {"logo": logo, "footer": footer, "labels": show_labels,
-                                    "style": style, "tagline": tagline}
+                                    "style": style, "tagline": tagline, "picker": picker}
+
+
+def theme_picker(themes):
+    """TESTING ONLY: a floating menu for previewing every theme and style.
+    Turned on by an undocumented "Theme picker: show" line in design.md.
+    To remove it: delete this function, its call in build_design(), the
+    "themepicker" key in DESIGN_KEYS, and the "picker" line in finish_site().
+    Returns (extra css, extra head html, widget html)."""
+    R.warn("**Theme picker is on.** This is a testing tool. Delete the \"Theme picker\" line "
+           "from design.md before students see this site.")
+    css = ["\n/* ---------- Theme picker (testing only) ---------- */"]
+    fonts = []
+    for name in themes:
+        t = read_theme(name)
+        faces = []
+        for var in ("heading-font", "body-font"):
+            g = google_font(t[var].strip())
+            if g:
+                fonts.append(g[1])
+            faces.append(g[0] if g else t[var].strip())
+        css.append(f"""html[data-theme="{name}"] {{
+  --bg: {t['bg']}; --text: {t['text']}; --main: {t['main']}; --accent: {t['accent']};
+  --on-main: {readable_on(t['main'])}; --on-accent: {readable_on(t['accent'])};
+  --on-grad: {readable_on(t['main'], t['accent'])};
+  --heading-font-stack: "{faces[0]}", system-ui, sans-serif;
+  --body-font-stack: "{faces[1]}", system-ui, sans-serif;
+  --heading-scale: {t.get('heading-scale', '1')};
+}}""")
+    css.append("""
+.theme-picker {
+  position: fixed; right: 1rem; bottom: 1rem; z-index: 50;
+  display: flex; flex-wrap: wrap; gap: .5rem; align-items: center;
+  padding: .5rem .75rem; max-width: calc(100vw - 2rem);
+  font: 600 .8rem/1.2 system-ui, sans-serif; color: var(--text);
+  background: var(--surface-strong); border: 1px solid var(--line);
+  border-radius: 999px; box-shadow: var(--shadow);
+  -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+}
+.theme-picker select {
+  font: inherit; color: var(--text); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 999px; padding: .3rem .6rem;
+}
+.theme-picker span { opacity: .7; }
+@media print { .theme-picker { display: none; } }""")
+
+    head = [f'<link rel="stylesheet" href="https://fonts.googleapis.com/css2?{html.escape(q)}&amp;display=swap">'
+            for q in dict.fromkeys(fonts)]
+    # Every student site shares one origin, so keep the choice per repo.
+    head.append("""<script>
+(function () {
+  var key = "themePicker:" + location.pathname.split("/")[1];
+  try { var s = JSON.parse(localStorage.getItem(key) || "{}"); } catch (e) { s = {}; }
+  if (s.theme) document.documentElement.dataset.theme = s.theme;
+  window.__picker = { key: key, saved: s };
+})();
+</script>""")
+    options = "".join(f'<option value="{n}">{n}</option>' for n in themes)
+    widget = f"""<div class="theme-picker" role="group" aria-label="Theme picker (testing only)">
+<span>Preview</span>
+<select id="tp-theme" aria-label="Theme"><option value="">design.md</option>{options}</select>
+<select id="tp-style" aria-label="Style"><option value="">design.md</option>
+<option value="glass">glass</option><option value="soft">soft</option><option value="flat">flat</option></select>
+</div>
+<script>
+(function () {{
+  var p = window.__picker, s = p.saved, body = document.body;
+  var built = (body.className.match(/style-(\\w+)/) || [])[1];
+  var theme = document.getElementById("tp-theme"), style = document.getElementById("tp-style");
+  function apply() {{
+    if (s.theme) document.documentElement.dataset.theme = s.theme;
+    else delete document.documentElement.dataset.theme;
+    body.className = body.className.replace(/style-\\w+/, "style-" + (s.style || built));
+    theme.value = s.theme || ""; style.value = s.style || "";
+  }}
+  function save() {{
+    s = {{ theme: theme.value, style: style.value }};
+    try {{ localStorage.setItem(p.key, JSON.stringify(s)); }} catch (e) {{}}
+    apply();
+  }}
+  theme.onchange = style.onchange = save;
+  apply();
+}})();
+</script>"""
+    return "\n".join(css) + "\n", "\n".join(head), widget
 
 
 # --------------------------------------------------------------------------
@@ -819,6 +910,10 @@ def finish_site(title, css, head, opts):
                    if n else '<a href="SITEROOT__/build-report.html">Build report</a>')
     footer_bits.append(f"<p>Last updated {stamp}. Built with DITA-OT. {report_link}</p>")
     footer = f'<footer role="contentinfo">{"".join(footer_bits)}</footer>'
+    # Long menus scroll inside their own box; start with the current page in view.
+    footer += ('<script>(function(){var n=document.querySelector("nav.toc"),'
+               'a=n&&n.querySelector("li.active > a");'
+               'if(a&&n.scrollHeight>n.clientHeight)n.scrollTop=a.offsetTop-n.clientHeight/3;})();</script>')
 
     labels = {"conbody": "Concept", "taskbody": "Task", "refbody": "Reference"}
 
@@ -839,7 +934,7 @@ def finish_site(title, css, head, opts):
         doc = doc.replace("<body", f'<body class="style-{opts["style"]}{page_class}"', 1)
         page_header = header.replace('<a class="menu-link" href="#site-menu">Menu</a>', "") if page_class else header
         doc = re.sub(r"(<body[^>]*>)", lambda m: m.group(1) + page_header, doc, count=1)
-        doc = doc.replace("</body>", footer + "</body>", 1)
+        doc = doc.replace("</body>", footer + opts["picker"] + "</body>", 1)
         doc = doc.replace('<nav class="toc"', '<nav class="toc" id="site-menu"', 1)
 
         if is_home:

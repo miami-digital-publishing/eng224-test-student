@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" font-family="Helvetica, Arial, sans-serif">
+  <circle cx="200" cy="200" r="180" fill="#eef6fa" stroke="#2f5566" stroke-width="4"/>
+  <path d="M200 50 L222 200 L200 350 L178 200 Z" fill="#2f5566"/>
+  <path d="M50 200 L200 182 L350 200 L200 218 Z" fill="#9db6c2"/>
+  <circle cx="200" cy="200" r="14" fill="#fff" stroke="#2f5566" stroke-width="3"/>
+  <g font-size="20" font-weight="bold" text-anchor="middle">
+    <text x="200" y="40" fill="#1a7f4b">With the wind: 0</text>
+    <text x="200" y="385" fill="#b3261e">Against: 2</text>
+  </g>
+  <g font-size="18" fill="#2f5566" text-anchor="middle">
+    <text x="70" y="235">Across: 1</text><text x="330" y="235">Across: 1</text>
+  </g>
+</svg>

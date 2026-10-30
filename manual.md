@@ -1,10 +1,71 @@
-# Tic-Tac-Toe Game Manual
+# Skyharbor Game Manual
 
-- [About the game](topics/about-the-game.md)
-- Getting started
-    - [What's in the box](topics/components.md)
-    - [Set up a game](topics/set-up.md)
-- Playing the game
-    - [Take a turn](topics/take-a-turn.md)
-    - [How to win](topics/winning.md)
-- [Glossary](topics/glossary.md)
+- About the game
+    - [The world of Skyharbor](topics/about/world-of-skyharbor.md)
+    - [Game overview](topics/about/game-overview.md)
+    - [How to win](topics/about/how-to-win.md)
+- Components
+    - [Component list](topics/components/component-list.md)
+    - [The sky map](topics/components/sky-map.md)
+    - [Island tiles](topics/components/island-tiles.md)
+    - [Airship boards](topics/components/airship-boards.md)
+    - [Cargo tokens](topics/components/cargo-tokens.md)
+    - [Coins](topics/components/coins.md)
+    - [Card types](topics/components/card-types.md)
+- Setting up
+    - [Set up the sky map](topics/setup/set-up-sky-map.md)
+    - [Set up your player area](topics/setup/set-up-player-area.md)
+    - [Choose the first captain](topics/setup/choose-first-captain.md)
+    - [Setup for two players](topics/setup/two-player-setup.md)
+    - [Setup for five players](topics/setup/five-player-setup.md)
+- Playing a round
+    - [Round overview](topics/turns/round-overview.md)
+    - [Dawn phase](topics/turns/dawn-phase.md)
+    - [Action phase](topics/turns/action-phase.md)
+    - [Dusk phase](topics/turns/dusk-phase.md)
+    - [End of a round](topics/turns/end-of-round.md)
+- Actions
+    - [Action summary](topics/actions/action-summary.md)
+    - [Sail](topics/actions/sail.md)
+    - [Load cargo](topics/actions/load-cargo.md)
+    - [Sell cargo](topics/actions/sell-cargo.md)
+    - [Fulfill a contract](topics/actions/fulfill-contract.md)
+    - [Hire crew](topics/actions/hire-crew.md)
+    - [Upgrade your airship](topics/actions/upgrade-airship.md)
+    - [Build a dock](topics/actions/build-dock.md)
+    - [Rest](topics/actions/rest.md)
+- Wind and weather
+    - [How wind works](topics/weather/how-wind-works.md)
+    - [Wind die results](topics/weather/wind-die.md)
+    - [Storms](topics/weather/storms.md)
+    - [Ride out a storm](topics/weather/ride-out-storm.md)
+    - [Fog banks](topics/weather/fog-banks.md)
+- Cards
+    - [Contract cards](topics/cards/contract-cards.md)
+    - [Event cards](topics/cards/event-cards.md)
+    - [Event card list](topics/cards/event-card-list.md)
+    - Crew
+        - [About crew](topics/cards/crew/about-crew.md)
+        - [Navigator](topics/cards/crew/navigator.md)
+        - [Quartermaster](topics/cards/crew/quartermaster.md)
+        - [Engineer](topics/cards/crew/engineer.md)
+        - [Lookout](topics/cards/crew/lookout.md)
+- Scoring
+    - [End of the game](topics/scoring/end-of-game.md)
+    - [Count your renown](topics/scoring/count-renown.md)
+    - [Scoring table](topics/scoring/scoring-table.md)
+    - [Breaking ties](topics/scoring/breaking-ties.md)
+- Solo play
+    - [Playing alone](topics/solo/playing-alone.md)
+    - [Set up a solo game](topics/solo/set-up-solo.md)
+    - [The rival captain](topics/solo/rival-captain.md)
+    - [Play the rival's turn](topics/solo/rival-turn.md)
+- Variants
+    - [Quick game](topics/variants/quick-game.md)
+    - [Cooperative mode](topics/variants/cooperative-mode.md)
+    - [Advanced contracts](topics/variants/advanced-contracts.md)
+- Help
+    - [Frequently asked questions](topics/help/faq.md)
+    - [Common mistakes](topics/help/common-mistakes.md)
+    - [Quick reference](topics/help/quick-reference.md)
+    - [Glossary](topics/help/glossary.md)

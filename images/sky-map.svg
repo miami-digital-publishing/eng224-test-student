@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400" font-family="Georgia, serif">
+  <defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#bfe3f5"/><stop offset="1" stop-color="#eef7fb"/></linearGradient></defs>
+  <rect width="640" height="400" rx="16" fill="url(#sky)"/>
+  <g stroke="#5b7c8d" stroke-width="3" stroke-dasharray="8 8" fill="none">
+    <path d="M120 110 L320 70 L520 110 L520 290 L320 330 L120 290 Z"/>
+    <path d="M120 110 L320 200 L520 110 M120 290 L320 200 L520 290 M320 70 L320 330"/>
+  </g>
+  <g fill="#fff" stroke="#2f5566" stroke-width="3">
+    <circle cx="120" cy="110" r="38"/><circle cx="320" cy="70" r="38"/><circle cx="520" cy="110" r="38"/>
+    <circle cx="320" cy="200" r="44"/><circle cx="120" cy="290" r="38"/><circle cx="320" cy="330" r="38"/><circle cx="520" cy="290" r="38"/>
+  </g>
+  <g font-size="26" font-weight="bold" fill="#2f5566" text-anchor="middle">
+    <text x="120" y="119">1</text><text x="320" y="79">2</text><text x="520" y="119">3</text>
+    <text x="320" y="209">4</text><text x="120" y="299">5</text><text x="320" y="339">6</text><text x="520" y="299">7</text>
+  </g>
+  <g fill="#8a9aa3" opacity="0.85"><ellipse cx="560" cy="300" rx="70" ry="26"/><ellipse cx="520" cy="275" rx="44" ry="22"/></g>
+  <text x="560" y="350" font-size="16" fill="#4b5d66" text-anchor="middle">storm</text>
+</svg>

@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" width="240" height="240" role="img" aria-label="An empty Tic-Tac-Toe grid">
-  <g stroke="#333" stroke-width="8" stroke-linecap="round">
-    <line x1="100" y1="15" x2="100" y2="285"/>
-    <line x1="200" y1="15" x2="200" y2="285"/>
-    <line x1="15" y1="100" x2="285" y2="100"/>
-    <line x1="15" y1="200" x2="285" y2="200"/>
-  </g>
-</svg>
