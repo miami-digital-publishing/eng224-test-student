@@ -493,6 +493,7 @@ DESIGN_KEYS = {
     "logo": "Logo",
     "footertext": "Footer text",
     "tagline": "Tagline",
+    "startpage": "Start page",
     "themepicker": "Theme picker",  # testing only; see theme_picker()
 }
 
@@ -726,6 +727,8 @@ def build_design():
     tagline = "" if is_default(v.get("tagline", "")) else v.get("tagline", "")
     R.design.append(("Tagline", html.escape(tagline) or "(none)", ""))
 
+    start = start_page(v.get("startpage", ""))
+
     def stack(name):
         return f'"{name}", system-ui, sans-serif'
 
@@ -762,7 +765,42 @@ def build_design():
         head.append(p_head)
 
     return css, "\n".join(head), {"logo": logo, "footer": footer, "labels": show_labels,
-                                    "style": style, "tagline": tagline, "picker": picker}
+                                    "style": style, "tagline": tagline, "picker": picker,
+                                    "start": start}
+
+
+def start_page(raw):
+    """The page the home page's "Start here" button opens: the menu item named in
+    design.md's "Start page" line, or the first page in the menu."""
+    if not R.pages:
+        return None
+    first = R.pages[0]
+    if is_default(raw):
+        R.design.append(("Start page", html.escape(first[0]), "first page in the menu"))
+        return first[1]
+    names = {}
+    for label, rel, _ in R.pages:
+        stem = posixpath.splitext(posixpath.basename(rel))[0]
+        for key in (label.lower(), stem, stem.replace("-", " "), rel.lower(),
+                    posixpath.splitext(rel)[0].lower()):
+            names.setdefault(key, rel)
+    want = raw.lower().strip().lstrip("/")
+    want = re.sub(r"\.md$", "", want)
+    match = names.get(want)
+    if not match:
+        close = difflib.get_close_matches(want, list(names), n=1, cutoff=0.6)
+        if close:
+            match = names[close[0]]
+            R.fixed(f"**design.md**: read the Start page \"{raw}\" as \"{close[0]}\".")
+    if not match:
+        R.warn(f"**design.md**: the Start page \"{raw}\" doesn't match anything in your menu, so the "
+               f"Start here button opens \"{first[0]}\". Write the words of a menu item exactly as "
+               "they appear in manual.md.")
+        R.design.append(("Start page", html.escape(first[0]), "first page in the menu"))
+        return first[1]
+    label = next(l for l, r, _ in R.pages if r == match)
+    R.design.append(("Start page", html.escape(label), f"from \"{raw}\""))
+    return match
 
 
 def theme_picker(themes):
@@ -902,6 +940,10 @@ def finish_site(title, css, head, opts):
               f'<a class="site-title" href="SITEROOT__/index.html">{logo_html}{html.escape(title)}</a>'
               f'{search_box}<a class="menu-link" href="#site-menu">Menu</a></div></header>')
     search_index = []
+    start_button = ""
+    if opts["start"]:
+        start_button = (f'<a class="start-button" href="SITEROOT__/'
+                        f'{posixpath.splitext(opts["start"])[0]}.html">Start here <span aria-hidden="true">→</span></a>')
 
     try:
         from zoneinfo import ZoneInfo
@@ -924,6 +966,22 @@ def finish_site(title, css, head, opts):
 
     labels = {"conbody": "Concept", "taskbody": "Task", "refbody": "Reference"}
 
+    # Every page in menu order, with its title and menu section, for Previous / Next
+    order = []
+    for _, rel, _ in R.pages:
+        name = posixpath.splitext(rel)[0] + ".html"
+        if (OUT / name).exists():
+            built = (OUT / name).read_text(encoding="utf-8")
+            m = re.search(r'<h1 class="title topictitle1"[^>]*>(.*?)</h1>', built, flags=re.S)
+            ptitle = html.unescape(re.sub(r"<[^>]+>", "", m.group(1))).strip() if m else name
+            trail = _MenuTrail()
+            nav = re.search(r'<nav class="toc".*?</nav>', built, flags=re.S)
+            trail.feed(nav.group(0) if nav else "")
+            order.append((name, ptitle, " › ".join(trail.trail or [])))
+    position = {name: i for i, (name, _, _) in enumerate(order)}
+    # Short menus stay fully open; long ones show only the current section
+    collapse = len(R.pages) > 12
+
     (OUT / "build-report.html").write_text(
         f'<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Build report</title>'
         f'</head><body><main role="main"><article>{report_html()}</article></main></body></html>',
@@ -941,6 +999,11 @@ def finish_site(title, css, head, opts):
             search_index.append(search_record(name, doc))
         doc = doc.replace("</head>", head + '<script src="SITEROOT__/_theme/search.js" defer></script>'
                           + "</head>", 1)
+        if collapse:
+            doc = re.sub(r'<nav class="toc".*?</nav>', lambda m: collapse_menu(m.group(0)), doc,
+                         count=1, flags=re.S)
+        if name in position:
+            doc = add_pager(doc, order, position[name])
         doc = doc.replace("<body", f'<body class="style-{opts["style"]}{page_class}"', 1)
         page_header = header.replace('<a class="menu-link" href="#site-menu">Menu</a>', "") if page_class else header
         doc = re.sub(r"(<body[^>]*>)", lambda m: m.group(1) + page_header, doc, count=1)
@@ -951,7 +1014,8 @@ def finish_site(title, css, head, opts):
             doc = re.sub(r"(</header>)(.*)(<footer)", r'\1<main class="home">\2</main>\3', doc, count=1, flags=re.S)
             tagline = f'<p class="tagline">{html.escape(opts["tagline"])}</p>' if opts["tagline"] else ""
             doc = re.sub(r'(<h1 class="title topictitle1">.*?</h1>)',
-                         lambda m: f'<div class="home-hero">{m.group(1)}{tagline}{search_box}</div>',
+                         lambda m: f'<div class="home-hero">{m.group(1)}{tagline}'
+                                   f'<div class="hero-actions">{start_button}{search_box}</div></div>',
                          doc, count=1, flags=re.S)
 
         if opts["labels"]:
@@ -967,6 +1031,51 @@ def finish_site(title, css, head, opts):
     shutil.copy2(HERE / "search.js", OUT / "_theme" / "search.js")
     (OUT / "_theme" / "search-index.js").write_text(
         "window.SEARCH_INDEX = " + json.dumps(search_index, ensure_ascii=False) + ";\n", encoding="utf-8")
+
+
+def collapse_menu(nav):
+    """Turns each menu section into a <details> box that opens and closes, with only
+    the sections around the current page open."""
+    heads = list(re.finditer(r"<li([^>]*)><span>(.*?)</span><ul>", nav, flags=re.S))
+    for m in reversed(heads):  # last first, so earlier positions stay put
+        ul_start = m.end() - len("<ul>")
+        depth, end = 0, None
+        for t in re.finditer(r"<ul\b|</ul>", nav[ul_start:]):
+            depth += 1 if t.group(0) == "<ul" else -1
+            if depth == 0:
+                end = ul_start + t.end()
+                break
+        if end is None:
+            continue
+        inner = nav[ul_start:end]
+        is_open = " open" if re.search(r'<li class="[^"]*\bactive\b', inner) else ""
+        nav = (nav[:m.start()] + f"<li{m.group(1)}><details{is_open}><summary>{m.group(2)}</summary>"
+               + inner + "</details>" + nav[end:])
+    return nav
+
+
+def add_pager(doc, order, i):
+    """Previous and next links at the bottom of a page, in menu order."""
+    def link(j, kind):
+        name, ptitle, trail = order[j]
+        here = order[i][2]
+        word = "Previous" if kind == "prev" else "Next"
+        section = f" · {html.escape(trail)}" if trail and trail != here else ""
+        arrow = ('<span aria-hidden="true">← </span>' if kind == "prev" else "")
+        after = ('<span aria-hidden="true"> →</span>' if kind == "next" else "")
+        return (f'<a class="pager-{kind}" href="SITEROOT__/{name}" rel="{kind}">'
+                f'<span class="pager-dir">{arrow}{word}{section}{after}</span>'
+                f'<span class="pager-title">{html.escape(ptitle)}</span></a>')
+    parts = []
+    if i > 0:
+        parts.append(link(i - 1, "prev"))
+    if i < len(order) - 1:
+        parts.append(link(i + 1, "next"))
+    if not parts:
+        return doc
+    pager = f'<nav class="pager" aria-label="Previous and next pages">{"".join(parts)}</nav>'
+    cut = doc.rfind("</article>")
+    return doc[:cut] + pager + doc[cut:] if cut >= 0 else doc
 
 
 class _MenuTrail(html.parser.HTMLParser):
