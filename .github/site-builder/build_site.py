@@ -18,6 +18,8 @@ Run locally from the repo root with:  python3 .github/site-builder/build_site.py
 import datetime
 import difflib
 import html
+import html.parser
+import json
 import os
 import posixpath
 import re
@@ -892,9 +894,14 @@ def finish_site(title, css, head, opts):
         shutil.copy2(SRC / opts["logo"], OUT / "_theme" / f"logo{ext}")
         logo_html = f'<img src="SITEROOT__/_theme/logo{ext}" alt="">'
 
+    search_box = ('<div class="site-search" role="search">'
+                  '<input type="search" placeholder="Search the manual" aria-label="Search the manual" '
+                  'autocomplete="off" spellcheck="false">'
+                  '<div class="search-results" hidden></div></div>')
     header = (f'<header role="banner"><div class="site-header">'
               f'<a class="site-title" href="SITEROOT__/index.html">{logo_html}{html.escape(title)}</a>'
-              f'<a class="menu-link" href="#site-menu">Menu</a></div></header>')
+              f'{search_box}<a class="menu-link" href="#site-menu">Menu</a></div></header>')
+    search_index = []
 
     try:
         from zoneinfo import ZoneInfo
@@ -930,7 +937,10 @@ def finish_site(title, css, head, opts):
         is_home = name == "index.html"
         page_class = {"index.html": " home-page", "build-report.html": " report-page"}.get(name, "")
 
-        doc = doc.replace("</head>", head + "</head>", 1)
+        if not page_class:
+            search_index.append(search_record(name, doc))
+        doc = doc.replace("</head>", head + '<script src="SITEROOT__/_theme/search.js" defer></script>'
+                          + "</head>", 1)
         doc = doc.replace("<body", f'<body class="style-{opts["style"]}{page_class}"', 1)
         page_header = header.replace('<a class="menu-link" href="#site-menu">Menu</a>', "") if page_class else header
         doc = re.sub(r"(<body[^>]*>)", lambda m: m.group(1) + page_header, doc, count=1)
@@ -941,7 +951,8 @@ def finish_site(title, css, head, opts):
             doc = re.sub(r"(</header>)(.*)(<footer)", r'\1<main class="home">\2</main>\3', doc, count=1, flags=re.S)
             tagline = f'<p class="tagline">{html.escape(opts["tagline"])}</p>' if opts["tagline"] else ""
             doc = re.sub(r'(<h1 class="title topictitle1">.*?</h1>)',
-                         lambda m: f'<div class="home-hero">{m.group(1)}{tagline}</div>', doc, count=1, flags=re.S)
+                         lambda m: f'<div class="home-hero">{m.group(1)}{tagline}{search_box}</div>',
+                         doc, count=1, flags=re.S)
 
         if opts["labels"]:
             m = re.search(r'<div class="body (conbody|taskbody|refbody)', doc)
@@ -952,6 +963,57 @@ def finish_site(title, css, head, opts):
 
         doc = doc.replace("SITEROOT__", root)
         page.write_text(doc, encoding="utf-8")
+
+    shutil.copy2(HERE / "search.js", OUT / "_theme" / "search.js")
+    (OUT / "_theme" / "search-index.js").write_text(
+        "window.SEARCH_INDEX = " + json.dumps(search_index, ensure_ascii=False) + ";\n", encoding="utf-8")
+
+
+class _MenuTrail(html.parser.HTMLParser):
+    """Finds the menu sections ("Cards", "Crew") above the current page in the nav."""
+    def __init__(self):
+        super().__init__()
+        self.stack, self.trail, self.in_span = [], None, False
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "li":
+            self.stack.append(None)
+            if self.trail is None and "active" in (dict(attrs).get("class") or ""):
+                self.trail = [t for t in self.stack[:-1] if t]
+        elif tag == "span" and self.stack:
+            self.in_span = True
+
+    def handle_endtag(self, tag):
+        if tag == "li" and self.stack:
+            self.stack.pop()
+        elif tag == "span":
+            self.in_span = False
+
+    def handle_data(self, data):
+        if self.in_span and data.strip():
+            self.stack[-1] = (self.stack[-1] or "") + data.strip()
+
+
+def search_record(name, doc):
+    """One page's entry in the search index: its title, menu section, and text."""
+    m = re.search(r'<h1 class="title topictitle1"[^>]*>(.*?)</h1>', doc, flags=re.S)
+    title = html.unescape(re.sub(r"<[^>]+>", "", m.group(1))).strip() if m else name
+    body = re.search(r"<main[^>]*>(.*)</main>", doc, flags=re.S)
+    body = body.group(1) if body else ""
+    body = re.sub(r'<h1 class="title topictitle1".*?</h1>', " ", body, count=1, flags=re.S)
+    body = re.sub(r"<(script|style)\b.*?</\1>", " ", body, flags=re.S)
+    heads = [html.unescape(re.sub(r"<[^>]+>", "", h)).strip()
+             for h in re.findall(r"<h[2-4][^>]*>(.*?)</h[2-4]>", body, flags=re.S)]
+    body = re.sub(r"</t[dh]>", " · ", body)  # keep table cells apart in snippets
+    text = html.unescape(re.sub(r"<[^>]+>", " ", body))
+    text = re.sub(r"\s+", " ", text).strip()
+    nav = re.search(r'<nav class="toc".*?</nav>', doc, flags=re.S)
+    trail = []
+    if nav:
+        p = _MenuTrail()
+        p.feed(nav.group(0))
+        trail = p.trail or []
+    return {"u": name, "t": title, "s": " › ".join(trail), "h": " · ".join(heads), "x": text[:6000]}
 
 
 def inline(text):
