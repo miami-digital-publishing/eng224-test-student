@@ -17,6 +17,7 @@ Run locally from the repo root with:  python3 .github/site-builder/build_site.py
 
 import datetime
 import difflib
+import hashlib
 import html
 import html.parser
 import json
@@ -107,8 +108,9 @@ def write_report(success):
             lines.append(f"| {name} | {value} | {note} |")
 
     if R.dita_log and not success:
-        lines.append("\n<details><summary>Technical details (share these with your instructor "
-                     "if you're stuck)</summary>\n\n```")
+        lines.extend(ai_help())
+        lines.append("\n<details><summary>Full technical details (for your instructor)"
+                     "</summary>\n\n```")
         lines.append(R.dita_log.strip()[-6000:])
         lines.append("```\n</details>")
 
@@ -120,6 +122,148 @@ def write_report(success):
         with open(summary, "a", encoding="utf-8") as f:
             f.write(text)
     print(text)
+
+
+AI_PROMPT = """\
+I'm a student writing a board-game manual in Markdown DITA (MDITA). Every time I commit \
+in github.dev, a tool runs DITA-OT 4.4.1 to turn my files into an HTML5 website. This \
+time DITA-OT failed. Please help me fix it.
+
+How my project works:
+- manual.md is the menu: a "# Title" line, then a bulleted list of links to pages. A \
+bullet without a link is a section heading, with its pages indented under it.
+- Each page is a .md file in topics/ that starts with "# Title {.concept}", \
+"# Title {.task}", or "# Title {.reference}".
+- In a task page, the steps are a numbered list with one instruction per number. Extra \
+details go in "-" bullets indented under a step. A paragraph, picture, note, or code \
+block indented under a step breaks the build.
+- Pictures are in images/ and written like ![Description](/images/file.png). Links \
+between pages start with /topics/.
+- I can only change manual.md, the files in topics/ and images/, and design.md. Don't \
+tell me to add YAML front matter, write HTML or XML, change DITA-OT's settings, or edit \
+anything in .github. The website builder handles all of that.
+
+Please:
+1. Explain in plain language what went wrong.
+2. Tell me exactly which file to change, and show me the corrected lines.
+3. If the error messages aren't enough to be sure, say so, and tell me what to check.
+
+The error messages from DITA-OT are below. I changed the file names to match my \
+files. Line and column numbers come from DITA-OT's converted copy, so they may not \
+match the lines in my file."""
+
+
+def dita_names():
+    """DITA-OT names the files it can't read by the SHA-1 of their file: URI.
+    Returns {hash: student path} so error messages can name the student's file."""
+    names = {}
+    for rel in ALL_FILES + ["_map.md"]:
+        student = "manual.md" if rel == "_map.md" else rel
+        for uri in {f"file:/work/src/{rel}", f"file:/work/src/{urllib.parse.quote(rel)}"}:
+            names[hashlib.sha1(uri.encode()).hexdigest()] = student
+    return names
+
+
+def dita_errors():
+    """The error lines from DITA-OT's log, with its file names changed to the
+    student's, plus the student files they mention."""
+    names = dita_names()
+    named = []
+
+    def rename(m):
+        student = names.get(m.group(1))
+        if not student:
+            return m.group(0)
+        if student not in named:
+            named.append(student)
+        return student
+
+    picked = []
+    for line in R.dita_log.splitlines():
+        line = line.strip()
+        if not re.search(r"^(Error|Warning|\[Fatal)|\[(ERROR|FATAL)\]|\[DOT[A-Z]\d+[EF]\]|Exception", line):
+            continue
+        line = re.sub(r"(?:file:)?/tmp/[\w./-]*?([0-9a-f]{40})\.\w+", rename, line)
+        line = re.sub(r"\b([0-9a-f]{40})\.\w+", rename, line)
+        line = re.sub(r"(?:file:)?/work/src/_map\.md|\bsrc/_map\.md\b|\b_map\.md\b", "manual.md", line)
+        line = re.sub(r"(?:file:)?/work/src/", "", line)
+        for rel in ALL_FILES:
+            if rel in line and rel not in named:
+                named.append(rel)
+        line = line if len(line) <= 500 else line[:500] + " …"
+        if line not in picked:
+            picked.append(line)
+    if not picked:  # nothing looked like an error; send the end of the log instead
+        picked = [l for l in R.dita_log.strip().splitlines() if l.strip()][-30:]
+    return picked[:25], named
+
+
+def changed_files():
+    """The pages and menu the student changed in the commits that started this build."""
+    path = os.environ.get("GITHUB_EVENT_PATH")
+    if not path:
+        return []
+    try:
+        event = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    files = []
+    for commit in event.get("commits") or []:
+        for rel in (commit.get("added") or []) + (commit.get("modified") or []):
+            if rel.endswith(".md") and rel in ALL_FILES and rel.lower() not in {"design.md", "readme.md"} \
+                    and rel not in files:
+                files.append(rel)
+    return files
+
+
+def ai_help():
+    """A section with one block of text a student can paste into an AI chat:
+    the project's rules, DITA-OT's errors in the student's own file names, and
+    the files those errors point to (or, if none, the files just changed)."""
+    errors, named = dita_errors()
+    files, why = named, "The file the error messages point to"
+    if not files:
+        files, why = changed_files(), "The files I changed just before the build failed"
+    files = files[:3]
+
+    parts = [AI_PROMPT, "", "```", *errors, "```"]
+    for rel in files:
+        try:
+            text = (REPO / rel).read_text(encoding="utf-8-sig", errors="replace").replace("\r\n", "\n")
+        except OSError:
+            continue
+        if len(text) > 6000:
+            text = text[:6000] + "\n[… the rest of the file is cut off …]"
+        fence = "`" * max(3, max((len(r) for r in re.findall(r"`+", text)), default=0) + 1)
+        parts += ["", f"{why}, {rel}:", "", fence, text.rstrip(), fence]
+        why = "And"
+    if not files:
+        parts += ["", "(I'll paste the page I was working on below.)"]
+    prompt = "\n".join(parts)
+
+    outer = "`" * max(4, max((len(r) for r in re.findall(r"`+", prompt)), default=0) + 1)
+    return [
+        "\n### Ask an AI for help\n",
+        "If the explanation above doesn't help, an AI chat can often work out the problem. "
+        "The box below has DITA-OT's error messages, the rules for your project, and "
+        + ("the page involved." if files else "space for the page you were working on."),
+        "",
+        "1. Point at the box and click the **copy** button in its top-right corner.",
+        "2. Paste it into your AI chat and send it." if files else
+        "2. Paste it into your AI chat. Then copy all of the page you were working on, "
+        "paste it at the end, and send it.",
+        "3. Make the change it suggests in github.dev, then commit. If this issue closes "
+        "by itself, it worked.",
+        "4. If the AI's fix doesn't work after two tries, ask your instructor, and include "
+        "a link to this issue.",
+        "",
+        "Remember that the AI can be wrong. Read its explanation, and change only the files "
+        "it names.",
+        "",
+        outer + "text",
+        prompt,
+        outer,
+    ]
 
 
 # --------------------------------------------------------------------------
@@ -913,7 +1057,8 @@ def run_dita():
     ok = proc.returncode == 0 and (out / "index.html").exists()
     if not ok and not R.errors:
         R.error("DITA-OT couldn't build your site, and the builder doesn't recognize the problem. "
-                "Open the **Technical details** below and share them with your instructor.")
+                "Follow the steps under **Ask an AI for help** below. If you're still stuck, "
+                "ask your instructor.")
     return ok
 
 
