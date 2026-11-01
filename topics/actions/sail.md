@@ -10,6 +10,10 @@ Sailing moves your airship from region to region along the air lanes.
 3. Move your airship one region at a time, along air lanes, until you've used your speed or you choose to stop.
     - You can't enter the storm region. See [Storms](/topics/weather/storms.md).
     - Entering a fog bank ends your movement. See [Fog banks](/topics/weather/fog-banks.md).
+    ```
+    speed = 2
+    ```
+
 4. Choose which island in the region your ship lands at.
 5. If the island has another captain's dock, pay that captain 1 coin.
 
