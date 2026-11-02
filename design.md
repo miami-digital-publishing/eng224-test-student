@@ -12,7 +12,7 @@ Topic labels: show
 Logo: none
 Tagline: Trade, sail, and outrun the storms above the clouds
 Start page: Set up the sky map
-Footer text: Written for ENG 224 at Miami University
+Footer text: Written for ENG/IMS 224 at Miami University
 Theme picker: show
 
 
