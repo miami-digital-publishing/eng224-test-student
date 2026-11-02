@@ -1,6 +1,6 @@
 # Build a Dock {.task}
 
-Docks earn you money whenever other captains land at your island, and each is worth renown at the end of the game.
+Docks earn you money whenever other captains land at your island, and each is worth renown at the end of the game!
 
 1. Check that the island you're at doesn't already have your dock.
     - An island can have docks from several different captains.
